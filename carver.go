@@ -2,6 +2,7 @@ package caire
 
 import (
 	"fmt"
+	"github.com/esimov/pigo/core"
 	"image"
 	"image/color"
 	"image/draw"
@@ -13,21 +14,20 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	pigo "github.com/esimov/pigo/core"
+	"github.com/google/uuid"
 )
 
 var usedSeams []UsedSeams
 
 // TempImage temporary image file.
-var TempImage = fmt.Sprintf("%d.jpg", time.Now().Unix())
+//var TempImage = fmt.Sprintf("%d.jpg", time.Now().Unix())
 
 // Carver is the main entry struct having as parameters the newly generated image width, height and seam points.
 type Carver struct {
 	Width  int
 	Height int
 	Points []float64
+	TempImage string
 }
 
 // UsedSeams contains the already generated seams.
@@ -53,6 +53,7 @@ func NewCarver(width, height int) *Carver {
 		width,
 		height,
 		make([]float64, width*height),
+		fmt.Sprintf("%s.jpg", uuid.New()),
 	}
 }
 
@@ -98,7 +99,7 @@ func (c *Carver) ComputeSeams(img *image.NRGBA, p *Processor) []float64 {
 			log.Fatalf("Error reading the cascade file: %v", err)
 		}
 
-		tmpImg, err := os.OpenFile(TempImage, os.O_CREATE|os.O_WRONLY, 0755)
+		tmpImg, err := os.OpenFile(c.TempImage, os.O_CREATE|os.O_WRONLY, 0755)
 		if err != nil {
 			log.Fatalf("Cannot access temporary image file: %v", err)
 		}
@@ -107,7 +108,7 @@ func (c *Carver) ComputeSeams(img *image.NRGBA, p *Processor) []float64 {
 			log.Fatalf("Cannot encode temporary image file: %v", err)
 		}
 
-		src, err := pigo.GetImage(TempImage)
+		src, err := pigo.GetImage(c.TempImage)
 		if err != nil {
 			log.Fatalf("Cannot open the image file: %v", err)
 		}
@@ -159,11 +160,11 @@ func (c *Carver) ComputeSeams(img *image.NRGBA, p *Processor) []float64 {
 		}
 
 		// Capture CTRL-C signal and remove the generated temporary image.
-		c := make(chan os.Signal, 2)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		ch := make(chan os.Signal, 2)
+		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		go func() {
-			for range c {
-				RemoveTempImage(TempImage)
+			for range ch {
+				RemoveTempImage(c.TempImage)
 				os.Exit(1)
 			}
 		}()
